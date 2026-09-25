@@ -55,7 +55,8 @@
                         <input type="text" class="form-control table-filter-control border-start-0 border-end-0 py-2"
                                placeholder="Buscar categoría de servicio..." autocomplete="off"
                                data-filter-target=".fila-tipo-servicio" data-filter-count="#contadorTiposServicio"
-                               data-filter-clear="#btnLimpiarTiposServicio">
+                               data-filter-clear="#btnLimpiarTiposServicio"
+                               data-pagination-container="#paginacionTiposServicio">
                         <button type="button" id="btnLimpiarTiposServicio" class="btn btn-light border-start-0 rounded-end-pill pe-3 text-muted" title="Limpiar búsqueda">
                             <i class="bi bi-x-circle"></i>
                         </button>
@@ -65,14 +66,14 @@
                 <div class="table-responsive">
                     <table class="table table-hover align-middle mb-0 custom-table">
                         <thead class="table-navy text-white">
-                            <tr class="fila-tipo-servicio">
+                            <tr>
                                 <th class="ps-4 py-3">Categoría</th>
                                 <th class="py-3 text-center pe-4">Acciones</th>
                             </tr>
                         </thead>
                         <tbody>
                             {% for tipo in tipos %}
-                            <tr>
+                            <tr class="fila-tipo-servicio">
                                 <td class="ps-4 py-3">
                                     <div class="d-flex align-items-center gap-3">
                                         <div class="avatar-circle">
@@ -98,6 +99,9 @@
                         </tbody>
                     </table>
                 </div>
+
+                <!-- Contenedor de Paginación (20 tipos de servicio por página) -->
+                <div id="paginacionTiposServicio" class="px-4 pb-3"></div>
                 {% else %}
                 <div class="p-5 text-center">
                     <div class="mb-3">

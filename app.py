@@ -18,6 +18,7 @@
 
 import os
 import json
+import math
 import random
 import re
 import secrets
@@ -1113,7 +1114,7 @@ def admin_restablecer_password(id):
 @role_required('Administrador')
 def admin_logs():
     """
-    Visualiza el registro histórico de auditoría de actividad del sistema.
+    Visualiza el registro histórico de auditoría de actividad del sistema con paginación de 20 por página.
     """
     filtros = {
         'fecha_desde': request.args.get('fecha_desde', '').strip(),
@@ -1138,13 +1139,60 @@ def admin_logs():
             except ValueError:
                 filtros[nombre_filtro] = ''
                 flash(f'El filtro {nombre_filtro.replace("_", " ")} no es válido.', 'warning')
-    logs = ActivityLog.buscar(**filtros)
+
+    # Configuración de paginado: 20 registros por página
+    por_pagina = 20
+    try:
+        pagina = int(request.args.get('page', 1))
+        if pagina < 1:
+            pagina = 1
+    except (ValueError, TypeError):
+        pagina = 1
+
+    total_logs = ActivityLog.contar(**filtros)
+    total_paginas = max(1, math.ceil(total_logs / por_pagina))
+    if pagina > total_paginas and total_logs > 0:
+        pagina = total_paginas
+
+    offset = (pagina - 1) * por_pagina
+    logs = ActivityLog.buscar(**filtros, limit=por_pagina, offset=offset)
     acciones_disponibles = ActivityLog.acciones_disponibles()
+
+    inicio_registro = offset + 1 if total_logs > 0 else 0
+    fin_registro = min(offset + por_pagina, total_logs)
+
+    # Rango de páginas con elipsis inteligente
+    def generar_rango(actual, total, ventana=2):
+        if total <= 7:
+            return list(range(1, total + 1))
+        pags = set([1, total])
+        for p in range(max(1, actual - ventana), min(total + 1, actual + ventana + 1)):
+            pags.add(p)
+        resultado = []
+        prev = 0
+        for p in sorted(pags):
+            if prev and p - prev > 1:
+                resultado.append(None)
+            resultado.append(p)
+            prev = p
+        return resultado
+
+    paginas_numeros = generar_rango(pagina, total_paginas)
+    filtros_activos = {k: v for k, v in filtros.items() if v}
+
     return render_template(
         'admin_logs.html',
         logs=logs,
         filtros=filtros,
-        acciones_disponibles=acciones_disponibles
+        filtros_activos=filtros_activos,
+        acciones_disponibles=acciones_disponibles,
+        pagina=pagina,
+        total_paginas=total_paginas,
+        total_logs=total_logs,
+        por_pagina=por_pagina,
+        inicio_registro=inicio_registro,
+        fin_registro=fin_registro,
+        paginas_numeros=paginas_numeros
     )
 
 
@@ -2339,42 +2387,37 @@ def nueva_factura():
         subtotal_val = subtotal_calculado
         iva_val = round(subtotal_val * 0.15, 2) if aplica_iva else 0.0
         total_val = round(subtotal_val + iva_val, 2)
-       anticipo_val = float(form.anticipo.data) if form.anticipo.data is not None else 0.00
-saldo_val = max(0.0, round(total_val - anticipo_val, 2))
+        anticipo_val = float(form.anticipo.data) if form.anticipo.data else 0.0
+        saldo_val = round(total_val - anticipo_val, 2)      
+        # Evitar que el abono sea mayor al total
+        if anticipo_val > total_val:
+            conn.rollback()
+            cursor.close()
+            conn.close()
 
-# Evitar que el abono sea mayor que el total
-if anticipo_val > total_val:
-    conn.rollback()
-    cursor.close()
-    conn.close()
+            flash(
+                f'El abono (${anticipo_val:.2f}) no puede ser  mayor '
+                f'al total del documento (${total_val:.2f}).',
+                'danger'
+            )
+            return redirect(url_for('nueva_factura', tipo=tipo_doc))
+        # REGLA DEL SISTEMA:
+        # Una factura final solo puede emitirse cuando el pago está completo.
+        if tipo_doc == 'Factura' and saldo_val > 0:
+            conn.rollback()
+            cursor.close()
+            conn.close()
 
-    flash(
-        f'El abono (${anticipo_val:.2f}) no puede ser mayor '
-        f'al total del documento (${total_val:.2f}).',
-        'danger'
-    )
-    return redirect(url_for('nueva_factura', tipo=tipo_doc))
+            flash(
+                f'No se puede emitir una factura final con saldo '
+                f'pendiente de ${saldo_val:.2f}. '
+                'warning'
+            )
+            return redirect(url_for('nueva_factura', tipo='Cotizacion'))
+        estado_id_final = form.estado_id.data 
 
-# REGLA DEL SISTEMA:
-# Una factura final solo puede emitirse cuando el pago está completo.
-if tipo_doc == 'Factura' and saldo_val > 0:
-    conn.rollback()
-    cursor.close()
-    conn.close()
-
-    flash(
-        f'No se puede emitir la factura porque existe un saldo '
-        f'pendiente de ${saldo_val:.2f}. '
-        'Debe registrarse un comprobante del abono hasta completar el pago.',
-        'warning'
-    )
-
-    return redirect(url_for('nueva_factura', tipo='Cotizacion'))
-
-estado_id_final = form.estado_id.data
-
-if tipo_doc == 'Factura' and saldo_val == 0:
-    estado_id_final = id_por_nombre.get('Pagada', estado_id_final)
+        if tipo_doc == 'Factura' and saldo_val == 0:
+            estado_id_final = id_por_nombre.get('Pagada', estado_id_final) 
 
         notas_final = form.notas.data.strip() if form.notas.data else (
             "Propuesta emitida por NexoDigital." if tipo_doc == 'Cotizacion' else "Comprobante emitido por NexoDigital."

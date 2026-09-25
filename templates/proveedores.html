@@ -50,8 +50,7 @@
                             <span class="input-group-text bg-light border-end-0 text-muted rounded-start-pill ps-3">
                                 <i class="bi bi-search text-emerald"></i>
                             </span>
-                            <input type="text" id="buscadorProveedores" class="form-control table-filter-control bg-light border-start-0 border-end-0 py-2"
-                                   data-filter-target=".fila-proveedor" data-filter-count="#contadorProveedoresVisibles" data-filter-clear="#btnLimpiarProveedores"
+                            <input type="text" id="buscadorProveedores" class="form-control bg-light border-start-0 border-end-0 py-2"
                                    placeholder="Buscar por proveedor, tipo de servicio, sitio web o estado..."
                                    autocomplete="off">
                             <button class="btn btn-light border-start-0 rounded-end-pill pe-3 text-muted" type="button" id="btnLimpiarProveedores" title="Borrar búsqueda">
@@ -145,6 +144,9 @@
                     </table>
                 </div>
 
+                <!-- Contenedor de Paginación (20 proveedores por página) -->
+                <div id="paginacionProveedores" class="px-4 pb-3"></div>
+
                 <!-- Estado sin resultados de búsqueda -->
                 <div id="sinResultadosProveedores" class="p-5 text-center d-none">
                     <div class="mb-3">
@@ -182,7 +184,20 @@ document.addEventListener("DOMContentLoaded", function () {
     const sinRes = document.getElementById("sinResultadosProveedores");
     const contador = document.getElementById("contadorProveedoresVisibles");
 
-    if (!filas.length || !input) return;
+    if (!filas.length) return;
+
+    // Inicializar paginador de 20 proveedores por página
+    const paginador = typeof configurarPaginador === "function" ? configurarPaginador({
+        elementos: filas,
+        porPagina: 20,
+        contenedorPaginacion: "#paginacionProveedores",
+        contadorElemento: contador,
+        textoEntidad: "proveedores",
+        sinResultadosElemento: sinRes,
+        desplazarAlCambiar: true
+    }) : null;
+
+    if (!input) return;
 
     function normalizar(t) {
         return (t || "").toLowerCase().normalize("NFD").replace(/[\u0300-\u036f]/g, "").trim();
@@ -190,26 +205,23 @@ document.addEventListener("DOMContentLoaded", function () {
 
     function filtrar() {
         const q = normalizar(input.value);
-        let visibles = 0;
 
-        filas.forEach(fila => {
+        const coincidentes = filas.filter(fila => {
             const nombre = normalizar(fila.dataset.nombre);
             const categoria = normalizar(fila.dataset.categoria);
             const sitio = normalizar(fila.dataset.sitio);
             const estado = normalizar(fila.dataset.estado);
 
-            const coincide = !q || nombre.includes(q) || categoria.includes(q) || sitio.includes(q) || estado.includes(q);
-
-            if (coincide) {
-                fila.classList.remove("d-none");
-                visibles++;
-            } else {
-                fila.classList.add("d-none");
-            }
+            return !q || nombre.includes(q) || categoria.includes(q) || sitio.includes(q) || estado.includes(q);
         });
 
-        if (contador) contador.textContent = visibles;
-        if (sinRes) sinRes.classList.toggle("d-none", visibles > 0);
+        if (paginador) {
+            paginador.filtrar(coincidentes);
+        } else {
+            filas.forEach(f => f.classList.toggle("d-none", !coincidentes.includes(f)));
+            if (contador) contador.textContent = coincidentes.length;
+            if (sinRes) sinRes.classList.toggle("d-none", coincidentes.length > 0);
+        }
     }
 
     input.addEventListener("input", filtrar);
