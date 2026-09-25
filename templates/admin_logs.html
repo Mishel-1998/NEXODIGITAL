@@ -34,7 +34,11 @@
                 </div>
                 <div>
                     <small class="text-muted">
-                        Mostrando <strong id="contadorLogsVisibles" class="text-navy">{{ logs|length }}</strong> de {{ logs|length }} registros
+                        {% if total_logs > 0 %}
+                        Mostrando <strong id="contadorLogsVisibles" class="text-navy">{{ inicio_registro }} a {{ fin_registro }}</strong> de {{ total_logs }} registros <span class="badge bg-light text-navy border ms-1">Pág. {{ pagina }} de {{ total_paginas }}</span>
+                        {% else %}
+                        Mostrando <strong id="contadorLogsVisibles" class="text-navy">0</strong> registros
+                        {% endif %}
                     </small>
                 </div>
             </div>
@@ -144,6 +148,53 @@
                         </tbody>
                     </table>
                 </div>
+
+                {% if total_paginas > 1 %}
+                <div class="d-flex justify-content-between align-items-center flex-wrap gap-2 pt-3 mt-3 border-top">
+                    <div class="small text-muted">
+                        Página <strong class="text-navy">{{ pagina }}</strong> de {{ total_paginas }} · <span class="text-muted">{{ por_pagina }} registros por página</span>
+                    </div>
+                    <nav aria-label="Navegación de páginas de logs">
+                        <ul class="pagination pagination-sm mb-0 gap-1 flex-wrap">
+                            <li class="page-item {% if pagina <= 1 %}disabled{% endif %}">
+                                <a class="page-link rounded-pill px-3" href="{{ url_for('admin_logs', page=1, **filtros_activos) }}" aria-label="Primera página" title="Primera página">
+                                    <i class="bi bi-chevron-double-left"></i>
+                                </a>
+                            </li>
+                            <li class="page-item {% if pagina <= 1 %}disabled{% endif %}">
+                                <a class="page-link rounded-pill px-3" href="{{ url_for('admin_logs', page=pagina - 1, **filtros_activos) }}" aria-label="Página anterior">
+                                    <i class="bi bi-chevron-left me-1"></i>Anterior
+                                </a>
+                            </li>
+
+                            {% for p in paginas_numeros %}
+                                {% if p is none %}
+                                    <li class="page-item disabled"><span class="page-link border-0 text-muted">...</span></li>
+                                {% elif p == pagina %}
+                                    <li class="page-item active" aria-current="page">
+                                        <span class="page-link rounded-circle px-3 fw-bold">{{ p }}</span>
+                                    </li>
+                                {% else %}
+                                    <li class="page-item">
+                                        <a class="page-link rounded-circle px-3" href="{{ url_for('admin_logs', page=p, **filtros_activos) }}">{{ p }}</a>
+                                    </li>
+                                {% endif %}
+                            {% endfor %}
+
+                            <li class="page-item {% if pagina >= total_paginas %}disabled{% endif %}">
+                                <a class="page-link rounded-pill px-3" href="{{ url_for('admin_logs', page=pagina + 1, **filtros_activos) }}" aria-label="Página siguiente">
+                                    Siguiente<i class="bi bi-chevron-right ms-1"></i>
+                                </a>
+                            </li>
+                            <li class="page-item {% if pagina >= total_paginas %}disabled{% endif %}">
+                                <a class="page-link rounded-pill px-3" href="{{ url_for('admin_logs', page=total_paginas, **filtros_activos) }}" aria-label="Última página" title="Última página">
+                                    <i class="bi bi-chevron-double-right"></i>
+                                </a>
+                            </li>
+                        </ul>
+                    </nav>
+                </div>
+                {% endif %}
 
                 <!-- Estado sin resultados de búsqueda -->
                 <div id="sinResultadosLogs" class="p-4 text-center d-none">

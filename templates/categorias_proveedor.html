@@ -55,7 +55,8 @@
                         <input type="text" class="form-control table-filter-control border-start-0 border-end-0 py-2"
                                placeholder="Buscar categoría de proveedor..." autocomplete="off"
                                data-filter-target=".fila-categoria-proveedor" data-filter-count="#contadorCategoriasProveedor"
-                               data-filter-clear="#btnLimpiarCategoriasProveedor">
+                               data-filter-clear="#btnLimpiarCategoriasProveedor"
+                               data-pagination-container="#paginacionCategoriasProveedor">
                         <button type="button" id="btnLimpiarCategoriasProveedor" class="btn btn-light border-start-0 rounded-end-pill pe-3 text-muted" title="Limpiar búsqueda">
                             <i class="bi bi-x-circle"></i>
                         </button>
@@ -65,14 +66,14 @@
                 <div class="table-responsive">
                     <table class="table table-hover align-middle mb-0 custom-table">
                         <thead class="table-navy text-white">
-                            <tr class="fila-categoria-proveedor">
+                            <tr>
                                 <th class="ps-4 py-3">Categoría</th>
                                 <th class="py-3 text-center pe-4">Acciones</th>
                             </tr>
                         </thead>
                         <tbody>
                             {% for categoria in categorias %}
-                            <tr>
+                            <tr class="fila-categoria-proveedor">
                                 <td class="ps-4 py-3">
                                     <div class="d-flex align-items-center gap-3">
                                         <div class="avatar-circle">
@@ -98,6 +99,9 @@
                         </tbody>
                     </table>
                 </div>
+
+                <!-- Contenedor de Paginación (20 categorías por página) -->
+                <div id="paginacionCategoriasProveedor" class="px-4 pb-3"></div>
                 {% else %}
                 <div class="p-5 text-center">
                     <div class="mb-3">

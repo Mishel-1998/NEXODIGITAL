@@ -14,9 +14,49 @@
 <section class="py-4">
     <div class="container">
         {% if solicitudes %}
-        <div class="row g-3">
+        <!-- Buscador y Filtro de Peticiones -->
+        <div class="card border-0 shadow-sm rounded-4 p-3 p-md-4 bg-white mb-4">
+            <div class="row g-2 align-items-center">
+                <div class="col-md-6 col-lg-5">
+                    <div class="input-group input-group-sm">
+                        <span class="input-group-text bg-light border-end-0 text-muted rounded-start-pill ps-3">
+                            <i class="bi bi-search text-emerald"></i>
+                        </span>
+                        <input type="text" id="buscadorSolicitudes" class="form-control bg-light border-start-0 border-end-0 py-2"
+                               placeholder="Buscar por cliente, correo o servicio..." autocomplete="off">
+                        <button class="btn btn-light border-start-0 rounded-end-pill pe-3 text-muted" type="button" id="btnLimpiarSolicitudes" title="Borrar búsqueda">
+                            <i class="bi bi-x-circle"></i>
+                        </button>
+                    </div>
+                </div>
+                <div class="col-md-3 col-lg-3">
+                    <select id="filtroEstadoSolicitud" class="form-select form-select-sm rounded-pill py-2">
+                        <option value="">Todos los estados</option>
+                        <option value="Pendiente">Pendiente</option>
+                        <option value="En revisión">En revisión</option>
+                        <option value="Asignada">Asignada</option>
+                        <option value="En proceso">En proceso</option>
+                        <option value="Resuelta">Resuelta</option>
+                        <option value="Descartada">Descartada</option>
+                    </select>
+                </div>
+                <div class="col-md-3 col-lg-4 text-md-end">
+                    <small class="text-muted">
+                        Mostrando <strong id="contadorSolicitudesVisibles" class="text-navy">{{ solicitudes|length }}</strong> de {{ solicitudes|length }} peticiones
+                    </small>
+                </div>
+            </div>
+        </div>
+
+        <div class="row g-3" id="contenedorSolicitudes">
             {% for solicitud in solicitudes %}
-            <div class="col-lg-6">
+            <div class="col-lg-6 fila-solicitud"
+                 data-nombre="{{ (solicitud['nombre'] or '')|lower }}"
+                 data-correo="{{ (solicitud['correo'] or '')|lower }}"
+                 data-telefono="{{ (solicitud['telefono'] or '')|lower }}"
+                 data-servicio="{{ (solicitud['tipo_servicio'] or '')|lower }}"
+                 data-estado="{{ (solicitud['estado'] or '')|lower }}"
+                 data-mensaje="{{ (solicitud['mensaje'] or '')|lower }}">
                 <article class="card border-0 shadow-sm rounded-4 h-100">
                     <div class="card-body p-4">
                         <div class="d-flex justify-content-between gap-3 mb-2">
@@ -125,6 +165,19 @@
             </div>
             {% endfor %}
         </div>
+
+        <!-- Contenedor de Paginación (20 peticiones por página) -->
+        <div id="paginacionSolicitudes" class="mt-4"></div>
+
+        <!-- Estado sin resultados de búsqueda -->
+        <div id="sinResultadosSolicitudes" class="card border-0 shadow-sm rounded-4 p-5 text-center d-none mt-3 bg-white">
+            <div class="mb-3 text-muted">
+                <i class="bi bi-search display-4 text-emerald"></i>
+            </div>
+            <h5 class="fw-bold text-navy">No se encontraron peticiones</h5>
+            <p class="text-muted small mb-0">Ninguna solicitud coincide con los criterios de búsqueda.</p>
+        </div>
+
         {% else %}
         <div class="card border-0 shadow-sm rounded-4 p-5 text-center">
             <i class="bi bi-inbox text-muted display-5"></i>
@@ -134,4 +187,71 @@
         {% endif %}
     </div>
 </section>
+
+<script>
+document.addEventListener("DOMContentLoaded", function () {
+    const input = document.getElementById("buscadorSolicitudes");
+    const filtroEstado = document.getElementById("filtroEstadoSolicitud");
+    const btnLimpiar = document.getElementById("btnLimpiarSolicitudes");
+    const filas = Array.from(document.querySelectorAll(".fila-solicitud"));
+    const sinRes = document.getElementById("sinResultadosSolicitudes");
+    const contador = document.getElementById("contadorSolicitudesVisibles");
+
+    if (!filas.length) return;
+
+    // Inicializar paginador de 20 peticiones por página
+    const paginador = typeof configurarPaginador === "function" ? configurarPaginador({
+        elementos: filas,
+        porPagina: 20,
+        contenedorPaginacion: "#paginacionSolicitudes",
+        contadorElemento: contador,
+        textoEntidad: "peticiones",
+        sinResultadosElemento: sinRes,
+        desplazarAlCambiar: true
+    }) : null;
+
+    if (!input && !filtroEstado) return;
+
+    function normalizar(t) {
+        return (t || "").toLowerCase().normalize("NFD").replace(/[\u0300-\u036f]/g, "").trim();
+    }
+
+    function filtrar() {
+        const q = normalizar(input ? input.value : "");
+        const estadoSel = normalizar(filtroEstado ? filtroEstado.value : "");
+
+        const coincidentes = filas.filter(fila => {
+            const nombre = normalizar(fila.dataset.nombre);
+            const correo = normalizar(fila.dataset.correo);
+            const telf = normalizar(fila.dataset.telefono);
+            const serv = normalizar(fila.dataset.servicio);
+            const estado = normalizar(fila.dataset.estado);
+            const msg = normalizar(fila.dataset.mensaje);
+
+            const coincideTexto = !q || nombre.includes(q) || correo.includes(q) || telf.includes(q) || serv.includes(q) || msg.includes(q);
+            const coincideEstado = !estadoSel || estado === estadoSel;
+            return coincideTexto && coincideEstado;
+        });
+
+        if (paginador) {
+            paginador.filtrar(coincidentes);
+        } else {
+            filas.forEach(f => f.classList.toggle("d-none", !coincidentes.includes(f)));
+            if (contador) contador.textContent = coincidentes.length;
+            if (sinRes) sinRes.classList.toggle("d-none", coincidentes.length > 0);
+        }
+    }
+
+    if (input) input.addEventListener("input", filtrar);
+    if (filtroEstado) filtroEstado.addEventListener("change", filtrar);
+    if (btnLimpiar) {
+        btnLimpiar.addEventListener("click", () => {
+            if (input) input.value = "";
+            if (filtroEstado) filtroEstado.value = "";
+            filtrar();
+            if (input) input.focus();
+        });
+    }
+});
+</script>
 {% endblock %}

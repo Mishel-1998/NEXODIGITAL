@@ -234,6 +234,9 @@
             {% endfor %}
         </div>
 
+        <!-- Contenedor de Paginación (20 servicios por página) -->
+        <div id="paginacionServicios" class="mt-4"></div>
+
         <!-- Estado "Sin Resultados" cuando el buscador no encuentra coincidencias -->
         <div id="sinResultados" class="card p-5 text-center shadow-sm border-0 rounded-4 mt-4 d-none bg-white">
             <div class="mb-3 text-muted">
@@ -307,6 +310,17 @@ document.addEventListener("DOMContentLoaded", function () {
 
     if (!cards.length) return;
 
+    // Inicializar paginador de 20 servicios por página
+    const paginador = typeof configurarPaginador === "function" ? configurarPaginador({
+        elementos: cards,
+        porPagina: 20,
+        contenedorPaginacion: "#paginacionServicios",
+        contadorElemento: contadorVisibles,
+        textoEntidad: "servicios",
+        sinResultadosElemento: sinResultados,
+        desplazarAlCambiar: true
+    }) : null;
+
     function normalizar(texto) {
         return (texto || "")
             .toLowerCase()
@@ -319,9 +333,8 @@ document.addEventListener("DOMContentLoaded", function () {
         const query = normalizar(inputBuscador.value);
         const categoria = normalizar(selectCategoria.value);
         const disponibilidad = selectDisponibilidad.value;
-        let visibles = 0;
 
-        cards.forEach(card => {
+        const coincidentes = cards.filter(card => {
             const nombre = normalizar(card.dataset.nombre);
             const descripcion = normalizar(card.dataset.descripcion);
             const tipo = normalizar(card.dataset.tipo);
@@ -331,16 +344,35 @@ document.addEventListener("DOMContentLoaded", function () {
             const coincideCategoria = !categoria || tipo === categoria;
             const coincideDisp = !disponibilidad || disp === disponibilidad;
 
-            if (coincideTexto && coincideCategoria && coincideDisp) {
-                card.classList.remove("d-none");
-                visibles++;
-            } else {
-                card.classList.add("d-none");
-            }
+            return coincideTexto && coincideCategoria && coincideDisp;
         });
 
-        // Actualizar contadores
-        if (contadorVisibles) contadorVisibles.textContent = visibles;
+        // Ordenamiento
+        if (contenedor) {
+            const criterio = selectOrdenar.value;
+            coincidentes.sort((a, b) => {
+                const precioA = parseFloat(a.dataset.precio || 0);
+                const precioB = parseFloat(b.dataset.precio || 0);
+                const nombreA = a.dataset.nombre || "";
+                const nombreB = b.dataset.nombre || "";
+
+                if (criterio === "precio-asc") return precioA - precioB;
+                if (criterio === "precio-desc") return precioB - precioA;
+                if (criterio === "nombre-asc") return nombreA.localeCompare(nombreB);
+                return 0;
+            });
+            coincidentes.forEach(card => contenedor.appendChild(card));
+        }
+
+        // Paginado reactivo
+        if (paginador) {
+            paginador.filtrar(coincidentes);
+        } else {
+            cards.forEach(c => c.classList.toggle("d-none", !coincidentes.includes(c)));
+            if (contadorVisibles) contadorVisibles.textContent = coincidentes.length;
+            if (sinResultados) sinResultados.classList.toggle("d-none", coincidentes.length > 0);
+        }
+
         if (contadorTotal) contadorTotal.textContent = cards.length;
 
         // Actualizar badge de filtros activos
@@ -359,39 +391,14 @@ document.addEventListener("DOMContentLoaded", function () {
             btnRestablecerContenedor.classList.add("d-none");
         }
 
-        // Mostrar u ocultar estado sin resultados
-        if (visibles === 0) {
-            sinResultados.classList.remove("d-none");
+        // Detalle de sin resultados
+        if (coincidentes.length === 0) {
             if (query) {
                 sinResultadosDetalle.textContent = `No encontramos servicios que coincidan con "${inputBuscador.value.trim()}". Intenta con otra palabra clave o restablece los filtros.`;
             } else {
                 sinResultadosDetalle.textContent = "No hay servicios que cumplan con la combinación de filtros seleccionada.";
             }
-        } else {
-            sinResultados.classList.add("d-none");
         }
-
-        aplicarOrdenamiento();
-    }
-
-    function aplicarOrdenamiento() {
-        if (!contenedor) return;
-        const criterio = selectOrdenar.value;
-        const visibles = cards.filter(c => !c.classList.contains("d-none"));
-
-        visibles.sort((a, b) => {
-            const precioA = parseFloat(a.dataset.precio || 0);
-            const precioB = parseFloat(b.dataset.precio || 0);
-            const nombreA = a.dataset.nombre || "";
-            const nombreB = b.dataset.nombre || "";
-
-            if (criterio === "precio-asc") return precioA - precioB;
-            if (criterio === "precio-desc") return precioB - precioA;
-            if (criterio === "nombre-asc") return nombreA.localeCompare(nombreB);
-            return 0; // relevancia / orden original
-        });
-
-        visibles.forEach(card => contenedor.appendChild(card));
     }
 
     function resetearFiltros() {

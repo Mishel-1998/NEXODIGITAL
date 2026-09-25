@@ -151,14 +151,11 @@ class ActivityLog(db.Model):
         conn.close()
         return logs
 
-    @staticmethod
-    def buscar(fecha_desde=None, fecha_hasta=None, hora_desde=None,
-               hora_hasta=None, persona=None, accion=None, ip=None,
-               detalles=None, limit=500):
-        """Busca auditoría con filtros aplicados en PostgreSQL."""
-        from conexion.conexion import get_db_connection
-        conn = get_db_connection()
-        cursor = conn.cursor()
+    @classmethod
+    def _construir_filtro_sql(cls, fecha_desde=None, fecha_hasta=None, hora_desde=None,
+                              hora_hasta=None, persona=None, accion=None, ip=None,
+                              detalles=None):
+        """Construye las cláusulas WHERE y parámetros de filtrado para auditoría."""
         condiciones = []
         parametros = []
         if fecha_desde:
@@ -186,16 +183,61 @@ class ActivityLog(db.Model):
             parametros.append(accion)
 
         where = f"WHERE {' AND '.join(condiciones)}" if condiciones else ''
-        parametros.append(limit)
+        return where, parametros
+
+    @staticmethod
+    def contar(fecha_desde=None, fecha_hasta=None, hora_desde=None,
+               hora_hasta=None, persona=None, accion=None, ip=None,
+               detalles=None):
+        """Retorna el número total de registros de auditoría que cumplen los filtros."""
+        from conexion.conexion import get_db_connection
+        where, parametros = ActivityLog._construir_filtro_sql(
+            fecha_desde=fecha_desde, fecha_hasta=fecha_hasta, hora_desde=hora_desde,
+            hora_hasta=hora_hasta, persona=persona, accion=accion, ip=ip,
+            detalles=detalles
+        )
+        conn = get_db_connection()
+        cursor = conn.cursor()
         cursor.execute(f'''
+            SELECT COUNT(*) AS total
+            FROM logs_actividad l
+            LEFT JOIN usuarios u ON l.usuario_id = u.id
+            LEFT JOIN roles r ON u.rol_id = r.id
+            {where}
+        ''', parametros)
+        fila = cursor.fetchone()
+        total = fila['total'] if fila else 0
+        cursor.close()
+        conn.close()
+        return total
+
+    @staticmethod
+    def buscar(fecha_desde=None, fecha_hasta=None, hora_desde=None,
+               hora_hasta=None, persona=None, accion=None, ip=None,
+               detalles=None, limit=20, offset=0):
+        """Busca auditoría con filtros aplicados y paginación en PostgreSQL."""
+        from conexion.conexion import get_db_connection
+        where, parametros = ActivityLog._construir_filtro_sql(
+            fecha_desde=fecha_desde, fecha_hasta=fecha_hasta, hora_desde=hora_desde,
+            hora_hasta=hora_hasta, persona=persona, accion=accion, ip=ip,
+            detalles=detalles
+        )
+        conn = get_db_connection()
+        cursor = conn.cursor()
+        params = list(parametros)
+        sql = f'''
             SELECT l.*, r.nombre AS rol_nombre
             FROM logs_actividad l
             LEFT JOIN usuarios u ON l.usuario_id = u.id
             LEFT JOIN roles r ON u.rol_id = r.id
             {where}
             ORDER BY l.fecha DESC, l.id DESC
-            LIMIT %s
-        ''', parametros)
+        '''
+        if limit is not None:
+            sql += ' LIMIT %s OFFSET %s'
+            params.extend([limit, offset or 0])
+
+        cursor.execute(sql, params)
         logs = cursor.fetchall()
         cursor.close()
         conn.close()

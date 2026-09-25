@@ -185,6 +185,9 @@
                     </table>
                 </div>
 
+                <!-- Contenedor de Paginación (20 documentos por página) -->
+                <div id="paginacionFacturas" class="px-4 pb-3"></div>
+
                 <!-- Estado sin resultados de búsqueda -->
                 <div id="sinResultadosFacturas" class="p-5 text-center d-none">
                     <div class="mb-3">
@@ -232,18 +235,30 @@ document.addEventListener("DOMContentLoaded", function () {
     const sinRes = document.getElementById("sinResultadosFacturas");
     const contador = document.getElementById("contadorFacturasVisibles");
 
-    if (!filas.length || !input) return;
+    if (!filas.length) return;
+
+    // Inicializar paginador de 20 documentos por página
+    const paginador = typeof configurarPaginador === "function" ? configurarPaginador({
+        elementos: filas,
+        porPagina: 20,
+        contenedorPaginacion: "#paginacionFacturas",
+        contadorElemento: contador,
+        textoEntidad: "documentos",
+        sinResultadosElemento: sinRes,
+        desplazarAlCambiar: true
+    }) : null;
+
+    if (!input && !filtroTipo) return;
 
     function normalizar(t) {
         return (t || "").toLowerCase().normalize("NFD").replace(/[\u0300-\u036f]/g, "").trim();
     }
 
     function filtrar() {
-        const q = normalizar(input.value);
+        const q = normalizar(input ? input.value : "");
         const tipoSel = normalizar(filtroTipo ? filtroTipo.value : "");
-        let visibles = 0;
 
-        filas.forEach(fila => {
+        const coincidentes = filas.filter(fila => {
             const numero = normalizar(fila.dataset.numero);
             const cliente = normalizar(fila.dataset.cliente);
             const fecha = normalizar(fila.dataset.fecha);
@@ -252,27 +267,26 @@ document.addEventListener("DOMContentLoaded", function () {
 
             const coincideTexto = !q || numero.includes(q) || cliente.includes(q) || fecha.includes(q) || estado.includes(q);
             const coincideTipo = !tipoSel || tipo.includes(tipoSel);
-
-            if (coincideTexto && coincideTipo) {
-                fila.classList.remove("d-none");
-                visibles++;
-            } else {
-                fila.classList.add("d-none");
-            }
+            return coincideTexto && coincideTipo;
         });
 
-        if (contador) contador.textContent = visibles;
-        if (sinRes) sinRes.classList.toggle("d-none", visibles > 0);
+        if (paginador) {
+            paginador.filtrar(coincidentes);
+        } else {
+            filas.forEach(f => f.classList.toggle("d-none", !coincidentes.includes(f)));
+            if (contador) contador.textContent = coincidentes.length;
+            if (sinRes) sinRes.classList.toggle("d-none", coincidentes.length > 0);
+        }
     }
 
-    input.addEventListener("input", filtrar);
+    if (input) input.addEventListener("input", filtrar);
     if (filtroTipo) filtroTipo.addEventListener("change", filtrar);
 
     function limpiar() {
-        input.value = "";
+        if (input) input.value = "";
         if (filtroTipo) filtroTipo.value = "";
         filtrar();
-        input.focus();
+        if (input) input.focus();
     }
 
     if (btnLimpiar) btnLimpiar.addEventListener("click", limpiar);

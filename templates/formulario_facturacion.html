@@ -273,9 +273,15 @@
                             <!-- Botón de Envío -->
                             <div class="d-grid gap-2">
                                 <button type="submit" class="btn btn-verde py-2 fw-semibold" id="btnGuardarFactura">
-                                    <i class="bi bi-check2-circle me-1"></i>
-                                    {{ 'Actualizar Documento' if editando else 'Guardar y Emitir Documento' }}
-                                </button>
+    <i class="bi bi-check2-circle me-1"></i>
+    {% if editando %}
+        Actualizar Documento
+    {% elif form.tipo.data == 'Factura' %}
+        Emitir Factura
+    {% else %}
+        Guardar Comprobante
+    {% endif %}
+</button>
                                 <a href="{{ url_for('facturacion') }}" class="btn btn-outline-secondary btn-sm">
                                     <i class="bi bi-arrow-left me-1"></i>Cancelar y Volver
                                 </a>

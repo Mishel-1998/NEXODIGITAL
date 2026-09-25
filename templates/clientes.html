@@ -50,8 +50,7 @@
                             <span class="input-group-text bg-light border-end-0 text-muted rounded-start-pill ps-3">
                                 <i class="bi bi-search text-emerald"></i>
                             </span>
-                            <input type="text" id="buscadorClientes" class="form-control table-filter-control bg-light border-start-0 border-end-0 py-2"
-                                   data-filter-target=".fila-cliente" data-filter-count="#contadorClientesVisibles" data-filter-clear="#btnLimpiarClientes"
+                            <input type="text" id="buscadorClientes" class="form-control bg-light border-start-0 border-end-0 py-2"
                                    placeholder="Buscar por cédula, nombre, tipo de negocio o ciudad..."
                                    autocomplete="off">
                             <button class="btn btn-light border-start-0 rounded-end-pill pe-3 text-muted" type="button" id="btnLimpiarClientes" title="Borrar búsqueda">
@@ -136,6 +135,9 @@
                     </table>
                 </div>
 
+                <!-- Contenedor de Paginación (20 clientes por página) -->
+                <div id="paginacionClientes" class="px-4 pb-3"></div>
+
                 <!-- Estado sin resultados de búsqueda -->
                 <div id="sinResultadosClientes" class="p-5 text-center d-none">
                     <div class="mb-3">
@@ -173,7 +175,20 @@ document.addEventListener("DOMContentLoaded", function () {
     const sinRes = document.getElementById("sinResultadosClientes");
     const contador = document.getElementById("contadorClientesVisibles");
 
-    if (!filas.length || !input) return;
+    if (!filas.length) return;
+
+    // Inicializar paginador de 20 clientes por página
+    const paginador = typeof configurarPaginador === "function" ? configurarPaginador({
+        elementos: filas,
+        porPagina: 20,
+        contenedorPaginacion: "#paginacionClientes",
+        contadorElemento: contador,
+        textoEntidad: "clientes",
+        sinResultadosElemento: sinRes,
+        desplazarAlCambiar: true
+    }) : null;
+
+    if (!input) return;
 
     function normalizar(t) {
         return (t || "").toLowerCase().normalize("NFD").replace(/[\u0300-\u036f]/g, "").trim();
@@ -181,9 +196,8 @@ document.addEventListener("DOMContentLoaded", function () {
 
     function filtrar() {
         const q = normalizar(input.value);
-        let visibles = 0;
 
-        filas.forEach(fila => {
+        const coincidentes = filas.filter(fila => {
             const cedula = normalizar(fila.dataset.cedula);
             const nombre = normalizar(fila.dataset.nombre);
             const negocio = normalizar(fila.dataset.negocio);
@@ -191,18 +205,16 @@ document.addEventListener("DOMContentLoaded", function () {
             const correo = normalizar(fila.dataset.correo);
             const telf = normalizar(fila.dataset.telefono);
 
-            const coincide = !q || cedula.includes(q) || nombre.includes(q) || negocio.includes(q) || ciudad.includes(q) || correo.includes(q) || telf.includes(q);
-
-            if (coincide) {
-                fila.classList.remove("d-none");
-                visibles++;
-            } else {
-                fila.classList.add("d-none");
-            }
+            return !q || cedula.includes(q) || nombre.includes(q) || negocio.includes(q) || ciudad.includes(q) || correo.includes(q) || telf.includes(q);
         });
 
-        if (contador) contador.textContent = visibles;
-        if (sinRes) sinRes.classList.toggle("d-none", visibles > 0);
+        if (paginador) {
+            paginador.filtrar(coincidentes);
+        } else {
+            filas.forEach(f => f.classList.toggle("d-none", !coincidentes.includes(f)));
+            if (contador) contador.textContent = coincidentes.length;
+            if (sinRes) sinRes.classList.toggle("d-none", coincidentes.length > 0);
+        }
     }
 
     input.addEventListener("input", filtrar);

@@ -201,6 +201,9 @@
                 </table>
             </div>
 
+            <!-- Contenedor de Paginación (20 usuarios por página) -->
+            <div id="paginacionUsuarios" class="pt-3"></div>
+
             <!-- Estado sin resultados de búsqueda -->
             <div id="sinResultadosUsuarios" class="p-4 text-center d-none">
                 <div class="mb-2">
@@ -214,7 +217,7 @@
             </div>
         </div>
 
-        <!-- 3. MATRIZ DE PERMISOS  POR ROL (rol_permisos) -->
+        <!-- 3. MATRIZ DE PERMISOS POR ROL (rol_permisos) -->
         <div class="card border-0 shadow-sm rounded-4 mt-4 bg-white">
             <div class="card-header bg-white border-bottom p-4">
                 <div class="d-flex justify-content-between align-items-center flex-wrap gap-2">
@@ -222,7 +225,7 @@
                         <span class="badge bg-primary-subtle text-primary border border-primary-subtle rounded-pill px-3 py-1 mb-2">
                             <i class="bi bi-key-fill me-1"></i>Control de Acceso Basado en Roles
                         </span>
-                        <h2 class="h5 fw-bold text-navy mb-1">Matriz de Permisos  por Rol</h2>
+                        <h2 class="h5 fw-bold text-navy mb-1">Matriz de Permisos por Rol</h2>
                         <p class="text-muted small mb-0">
                             Asociaciones directas en la base de datos (<code class="text-navy">rol_permisos</code> con PRIMARY KEY compuesta <code class="text-navy">(rol_id, permiso_id)</code>)
                         </p>
@@ -279,7 +282,20 @@ document.addEventListener("DOMContentLoaded", function () {
     const sinRes = document.getElementById("sinResultadosUsuarios");
     const contador = document.getElementById("contadorUsuariosVisibles");
 
-    if (!filas.length || !input) return;
+    if (!filas.length) return;
+
+    // Inicializar paginador de 20 usuarios por página
+    const paginador = typeof configurarPaginador === "function" ? configurarPaginador({
+        elementos: filas,
+        porPagina: 20,
+        contenedorPaginacion: "#paginacionUsuarios",
+        contadorElemento: contador,
+        textoEntidad: "cuentas",
+        sinResultadosElemento: sinRes,
+        desplazarAlCambiar: true
+    }) : null;
+
+    if (!input) return;
 
     function normalizar(t) {
         return (t || "").toLowerCase().normalize("NFD").replace(/[\u0300-\u036f]/g, "").trim();
@@ -287,25 +303,22 @@ document.addEventListener("DOMContentLoaded", function () {
 
     function filtrar() {
         const q = normalizar(input.value);
-        let visibles = 0;
 
-        filas.forEach(fila => {
+        const coincidentes = filas.filter(fila => {
             const user = normalizar(fila.dataset.usuario);
             const correo = normalizar(fila.dataset.correo);
             const rol = normalizar(fila.dataset.rol);
 
-            const coincide = !q || user.includes(q) || correo.includes(q) || rol.includes(q);
-
-            if (coincide) {
-                fila.classList.remove("d-none");
-                visibles++;
-            } else {
-                fila.classList.add("d-none");
-            }
+            return !q || user.includes(q) || correo.includes(q) || rol.includes(q);
         });
 
-        if (contador) contador.textContent = visibles;
-        if (sinRes) sinRes.classList.toggle("d-none", visibles > 0);
+        if (paginador) {
+            paginador.filtrar(coincidentes);
+        } else {
+            filas.forEach(f => f.classList.toggle("d-none", !coincidentes.includes(f)));
+            if (contador) contador.textContent = coincidentes.length;
+            if (sinRes) sinRes.classList.toggle("d-none", coincidentes.length > 0);
+        }
     }
 
     input.addEventListener("input", filtrar);

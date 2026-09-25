@@ -1,4 +1,4 @@
-﻿// ==============================================================================
+// ==============================================================================
 // MÓDULO JS: REGISTRO DINÁMICO DE SOLICITUDES (DOM & LOCALSTORAGE)
 // ==============================================================================
 // Este script gestiona el módulo interactivo de solicitudes rápidas de clientes.
@@ -42,27 +42,45 @@ document.addEventListener("DOMContentLoaded", () => {
         });
     });
 
-    // Filtro común para cualquier tabla que declare data-filter-target.
+    // Filtro común para cualquier tabla que declare data-filter-target con soporte de paginado (20 por página)
     document.querySelectorAll("[data-filter-target]").forEach((input) => {
         const selector = input.dataset.filterTarget;
         const filas = Array.from(document.querySelectorAll(selector));
         const contador = input.dataset.filterCount
             ? document.querySelector(input.dataset.filterCount)
             : null;
+        const contenedorPaginacion = input.dataset.paginationContainer
+            ? document.querySelector(input.dataset.paginationContainer)
+            : null;
         if (!filas.length) return;
+
+        const paginador = contenedorPaginacion && typeof configurarPaginador === "function" ? configurarPaginador({
+            elementos: filas,
+            porPagina: 20,
+            contenedorPaginacion: contenedorPaginacion,
+            contadorElemento: contador,
+            textoEntidad: "registros"
+        }) : null;
 
         const aplicarFiltro = () => {
             const consulta = normalizarTexto(input.value);
-            let visibles = 0;
 
-            filas.forEach((fila) => {
-                const contenido = normalizarTexto(fila.textContent);
-                const visible = !consulta || contenido.includes(consulta);
-                fila.classList.toggle("d-none", !visible);
-                if (visible) visibles += 1;
-            });
-
-            if (contador) contador.textContent = visibles;
+            if (paginador) {
+                const coincidentes = filas.filter((fila) => {
+                    const contenido = normalizarTexto(fila.textContent);
+                    return !consulta || contenido.includes(consulta);
+                });
+                paginador.filtrar(coincidentes);
+            } else {
+                let visibles = 0;
+                filas.forEach((fila) => {
+                    const contenido = normalizarTexto(fila.textContent);
+                    const visible = !consulta || contenido.includes(consulta);
+                    fila.classList.toggle("d-none", !visible);
+                    if (visible) visibles += 1;
+                });
+                if (contador) contador.textContent = visibles;
+            }
         };
 
         input.addEventListener("input", aplicarFiltro);
@@ -744,3 +762,195 @@ document.addEventListener("DOMContentLoaded", () => {
     // Renderizar solicitudes iniciales al cargar la página
     mostrarSolicitudes();
 });
+
+/**
+ * ==============================================================================
+ * PAGINADOR GENÉRICO CENTRALIZADO (NEXODIGITAL)
+ * ==============================================================================
+ * Pagina por cada 20 registros (o el valor indicado) cualquier listado o tabla.
+ * Se integra con buscadores en vivo, actualiza contadores y genera UI Bootstrap 5.
+ */
+function configurarPaginador({
+    elementos,
+    porPagina = 20,
+    contenedorPaginacion,
+    contadorElemento,
+    textoEntidad = "registros",
+    sinResultadosElemento = null,
+    desplazarAlCambiar = false
+}) {
+    if (!elementos) return null;
+    const todos = Array.from(elementos);
+    if (!todos.length) return null;
+
+    const navContainer = typeof contenedorPaginacion === "string" 
+        ? document.querySelector(contenedorPaginacion) 
+        : contenedorPaginacion;
+    if (!navContainer) return null;
+
+    const contador = typeof contadorElemento === "string" 
+        ? document.querySelector(contadorElemento) 
+        : contadorElemento;
+
+    const sinResultados = typeof sinResultadosElemento === "string"
+        ? document.querySelector(sinResultadosElemento)
+        : sinResultadosElemento;
+
+    let elementosFiltrados = [...todos];
+    let paginaActual = 1;
+
+    function calcularTotalPaginas() {
+        return Math.max(1, Math.ceil(elementosFiltrados.length / porPagina));
+    }
+
+    function renderizarPagina(num) {
+        const totalPaginas = calcularTotalPaginas();
+        paginaActual = Math.min(Math.max(1, num), totalPaginas);
+
+        const inicio = (paginaActual - 1) * porPagina;
+        const fin = inicio + porPagina;
+        const total = elementosFiltrados.length;
+
+        // Ocultar todos los elementos primero
+        todos.forEach(el => el.classList.add("d-none"));
+
+        // Mostrar solo los elementos de la página actual
+        elementosFiltrados.slice(inicio, fin).forEach(el => el.classList.remove("d-none"));
+
+        // Gestionar estado sin resultados
+        if (sinResultados) {
+            sinResultados.classList.toggle("d-none", total > 0);
+        }
+
+        // Actualizar contador
+        if (contador) {
+            if (total === 0) {
+                contador.textContent = "0";
+            } else {
+                const desde = inicio + 1;
+                const hasta = Math.min(fin, total);
+                if (total === todos.length) {
+                    contador.textContent = `${desde} a ${hasta} de ${total}`;
+                } else {
+                    contador.textContent = `${desde} a ${hasta} de ${total} (de ${todos.length} totales)`;
+                }
+            }
+        }
+
+        // Generar barra de paginación
+        navContainer.innerHTML = "";
+        if (totalPaginas <= 1 && total <= porPagina) {
+            navContainer.classList.add("d-none");
+            return;
+        }
+        navContainer.classList.remove("d-none");
+
+        const nav = document.createElement("nav");
+        nav.setAttribute("aria-label", `Paginación de ${textoEntidad}`);
+        nav.className = "d-flex justify-content-between align-items-center flex-wrap gap-2 pt-3 border-top w-100";
+
+        const info = document.createElement("div");
+        info.className = "small text-muted";
+        info.innerHTML = `Página <strong class="text-navy">${paginaActual}</strong> de ${totalPaginas} · <span class="text-muted">${porPagina} por pág.</span>`;
+
+        const ul = document.createElement("ul");
+        ul.className = "pagination pagination-sm mb-0 gap-1 flex-wrap";
+
+        // Botón Anterior
+        const liPrev = document.createElement("li");
+        liPrev.className = `page-item ${paginaActual <= 1 ? "disabled" : ""}`;
+        const btnPrev = document.createElement("button");
+        btnPrev.type = "button";
+        btnPrev.className = "page-link rounded-pill px-3";
+        btnPrev.setAttribute("aria-label", "Página anterior");
+        btnPrev.innerHTML = `<i class="bi bi-chevron-left me-1"></i>Anterior`;
+        if (paginaActual > 1) {
+            btnPrev.addEventListener("click", () => irAPagina(paginaActual - 1));
+        }
+        liPrev.appendChild(btnPrev);
+        ul.appendChild(liPrev);
+
+        // Números de página con elipsis
+        const paginas = [];
+        if (totalPaginas <= 7) {
+            for (let i = 1; i <= totalPaginas; i++) paginas.push(i);
+        } else {
+            const setPags = new Set([1, totalPaginas]);
+            for (let i = Math.max(1, paginaActual - 2); i <= Math.min(totalPaginas, paginaActual + 2); i++) {
+                setPags.add(i);
+            }
+            const ordenadas = Array.from(setPags).sort((a, b) => a - b);
+            let prev = 0;
+            ordenadas.forEach(p => {
+                if (prev && p - prev > 1) paginas.push(null);
+                paginas.push(p);
+                prev = p;
+            });
+        }
+
+        paginas.forEach(p => {
+            const li = document.createElement("li");
+            if (p === null) {
+                li.className = "page-item disabled";
+                li.innerHTML = `<span class="page-link border-0 text-muted">...</span>`;
+            } else if (p === paginaActual) {
+                li.className = "page-item active";
+                li.setAttribute("aria-current", "page");
+                li.innerHTML = `<span class="page-link rounded-circle px-3 fw-bold">${p}</span>`;
+            } else {
+                li.className = "page-item";
+                const btn = document.createElement("button");
+                btn.type = "button";
+                btn.className = "page-link rounded-circle px-3";
+                btn.textContent = p;
+                btn.addEventListener("click", () => irAPagina(p));
+                li.appendChild(btn);
+            }
+            ul.appendChild(li);
+        });
+
+        // Botón Siguiente
+        const liNext = document.createElement("li");
+        liNext.className = `page-item ${paginaActual >= totalPaginas ? "disabled" : ""}`;
+        const btnNext = document.createElement("button");
+        btnNext.type = "button";
+        btnNext.className = "page-link rounded-pill px-3";
+        btnNext.setAttribute("aria-label", "Página siguiente");
+        btnNext.innerHTML = `Siguiente<i class="bi bi-chevron-right ms-1"></i>`;
+        if (paginaActual < totalPaginas) {
+            btnNext.addEventListener("click", () => irAPagina(paginaActual + 1));
+        }
+        liNext.appendChild(btnNext);
+        ul.appendChild(liNext);
+
+        nav.appendChild(info);
+        nav.appendChild(ul);
+        navContainer.appendChild(nav);
+    }
+
+    function irAPagina(num) {
+        renderizarPagina(num);
+        if (desplazarAlCambiar) {
+            const elDestino = navContainer.closest(".card") || navContainer;
+            if (elDestino) {
+                elDestino.scrollIntoView({ behavior: "smooth", block: "start" });
+            }
+        }
+    }
+
+    function filtrar(elementosQueCoinciden) {
+        elementosFiltrados = Array.from(elementosQueCoinciden || []);
+        renderizarPagina(1);
+    }
+
+    // Inicializar primera página
+    renderizarPagina(1);
+
+    return {
+        irAPagina,
+        filtrar,
+        obtenerPaginaActual: () => paginaActual,
+        obtenerTotalPaginas: calcularTotalPaginas
+    };
+}
+window.configurarPaginador = configurarPaginador;
